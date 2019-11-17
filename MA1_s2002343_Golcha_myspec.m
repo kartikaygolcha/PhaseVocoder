@@ -27,7 +27,7 @@ function my_spectogram_out=MA1_s2002343_Golcha_myspec(Input,Fs,Sample_window,Ove
     fft_in=zeros(2^fft_size,1);
     yfft=zeros(2^(fft_size-1),1);
     f=((1:2^fft_size)./2^fft_size)*Fs;
-    t=[1:1:Nf+1];
+    t=[1:1:Nf+1]*HA/Fs;
     for i=1:1:Nf
         fft_in=fft(x(n+(i-1)*HA,1).*win',2^fft_size);
         Xmag=abs(fft_in);
@@ -39,6 +39,8 @@ function my_spectogram_out=MA1_s2002343_Golcha_myspec(Input,Fs,Sample_window,Ove
     end
     f=f(1:2^(fft_size-1));
     title_spec=strcat(Graph," N=",num2str(N/Fs)," Overlap=",num2str(Overlap*100)); 
+    xlabel("Time");
+    ylabel("Frequency");
     imagesc('XData',t,'YData',f','CData',yfft);
     title(title_spec);
     fft_max=max(yfft(:));

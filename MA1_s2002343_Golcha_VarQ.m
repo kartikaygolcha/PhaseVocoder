@@ -1,6 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Code Name: Part 1 Matlab Midterm Assessment 
-% Q: Phase Vocoder Time Stretcher
+% Q: Phase Vocoder for variable Q
 % Developer: Kartikay Golcha
 % UUN: s2002343
 % Date :10/11/2019
@@ -34,9 +34,9 @@ x=[zeros(1,N),x,zeros(1,round(N))];
 L= length(x);                       %Length of total input vector
 
 Nf=floor((L-N)/HA);                 %Number of frames
-Q=exp(linspace(1.2,1/2,Nf))/2.73; 
+Q=exp(linspace(1.2,1/2,Nf))/2.73;   %Variation of Q
 Hs=floor(Q*HA);                     %Synthesis Hop Length
-hh=sum(Q.*HA));
+hh=sum(Q.*HA);
 y=zeros(1,ceil(hh));              %output Vector
 r=zeros(1,L);                       %for Window interpolation
 n=1:1:N;
@@ -67,7 +67,6 @@ x=x(1,N:L-round(2*N-HA));
 y=y(1,N:(length(y)-round(2*N-HA)));
 
 %Plotting 
-soundsc(y,Fs);
 subplot(4,1,1);
 plot(x);
 xlabel("Time");
@@ -94,4 +93,4 @@ if Q==1
 end
 
 %Playing the output file
-%soundsc(y,Fs);
+soundsc(y,Fs);

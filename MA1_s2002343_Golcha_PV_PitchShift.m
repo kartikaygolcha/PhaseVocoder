@@ -1,6 +1,6 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Code Name: Part 1 Matlab Midterm Assessment 
-% Q: Phase Vocoder Time Stretcher
+% Q: Phase Vocoder Time Stretcher with Pitch Shift
 % Developer: Kartikay Golcha
 % UUN: s2002343
 % Date :10/11/2019
@@ -11,8 +11,9 @@ close all;
 ppa=inline('mod(a+pi,2*pi)-pi','a'); %Function to WrapToPi
 
 %read in our WAV file, and store sample rate in Fs
-[x,Fs]=audioread('piano.wav');
+[x,Fs]=audioread('mozart.wav');
 x = 0.5*sum(x,2)';                  %stereo to mono
+L_in=length(x);
 
 %frame length, for now 50ms
 time_frame=0.05;
@@ -28,21 +29,34 @@ Q=1;
 %Defining Window (Hanning)
 q=[0:1:N-1];
 win=0.5-0.5*cos(2*pi*q/N);
+Nf=floor((N+L_in)/HA);
+Nfft=2^fft_size;
 
 %Zero Padding in the start and end  
-x=[zeros(1,N),x,zeros(1,round(N))];
-L= length(x);                       %Length of total input vector
+if(((Nf-1)*HA-L_in)>N/2)  % zero padding at the end to accouont of the slope of window
+    n1=(Nf-1)*HA-L_in+N; 
+    n2=N;
+else 
+    n1=(Nf-1)*HA-L_in;
+    n2=0;
+end    
 
-Nf=floor((L-N)/HA);                 %Number of frames
+x=[zeros(1,N),x,zeros(1,n1)];
+L= length(x);                       %reinitialize Length of total input vector
+ 
 Hs=floor(Q*HA);                     %Synthesis Hop Length
-y=zeros(1,ceil(Q*L));              %output Vector
+
+%if m_p > n_p then Pitch down and n_p> m_p is pitch up and m_p=n_p is same
+%pitch
+m_p=2;
+n_p=1;
+pitch_ratio=m_p/n_p;
+
+y=zeros(1,ceil(n2+N+(Hs*(Nf-1))));  %output Vector
+pitch_c=1:1:round((m_p/n_p*N));
+y=[y,zeros(1,round(m_p/n_p*N))];    % Adding additional zeros for pitch
 r=zeros(1,L);                       %for Window interpolation
-m=3;
-n1=2;
-pit=m/n1;
 n=1:1:N;
-pitch_c=1:1:round((0.5*N));
-y=[y,zeros(1,round(0.5*N))];
 
 %frequency vector for N-length DFT
 phi_m=zeros(1,2^fft_size);
@@ -50,52 +64,70 @@ theta=zeros(1,2^fft_size);
 wmk=zeros(1,2^fft_size);
 bin_freq=2*pi*linspace(1,2^fft_size,2^fft_size)/(2^fft_size);
 
-for i=1:1:Nf
+for i=0:1:Nf
     fft_in=fft((x(1,n+i*HA)),2^fft_size);
     Xmag=abs(fft_in);
     Xang=angle(fft_in);
     wmk=ppa((Xang-phi_m-(bin_freq.*HA))/HA);
     theta=theta+(wmk*Hs)+(bin_freq.*Hs);
     Y=Xmag.*exp(j*theta);
+    
+    %Check Hermitian Symmetry
+    Err=Y(2:Nfft/2)-(flip(conj(Y((2^fft_size/2 + 2):Nfft))));
+    assert(abs(real(Y(1)))<=abs(complex(Y(1))) || Y(1)~=0);
+    assert(abs(real(Y(Nfft/2+1)))<=abs(complex(Y(Nfft/2 + 1))) || Y(Nfft/2 + 1)~=0);
+    assert(sum(Err)<0.01);
+    
     x_ifft=ifft(Y,'symmetric');
     x_ifft=x_ifft(1,1:N).*win;
-    x_ifft=resample(x_ifft,1,2);
-    y(1,pitch_c+(i*Hs))=y(1,pitch_c+(i*Hs))+((1/2)*x_ifft);
+    x_ifft=resample(x_ifft,m_p,n_p);
+    y(1,pitch_c+(i*Hs))=y(1,pitch_c+(i*Hs))+((2*HA/N)*x_ifft);
     r(1,n+(i*HA))=r(1,n+(i*HA))+win;
     phi_m=Xang;
 end
-
 %Extracting the final signals 
-x=x(1,N:L-round(2*N-HA));
-y=y(1,N:(length(y)-round(2*N-HA)));
+x_in=x(1,N+1:L-n1);
+y_out=y(1,N+1:(length(y)-((Nf-1)*HA-L_in))-n2-(m_p/n_p*N));
 
+t_x=[0:1:length(x_in)-1]/Fs;
+t_y=[0:1:length(y_out)-1]/Fs;
+t_r=[0:1:length(r)-1]/Fs;
 %Plotting 
-
-soundsc(y,Fs);
+fig1=figure('Name',"Plots");
 subplot(4,1,1);
-plot(x);
-xlabel("Time");
+plot(t_x,x_in);
+xlabel("Time(s)");
 ylabel("Amplitude");
 title("Input of Time Stretcher");
 
 subplot(4,1,2);
-plot(y);
-xlabel("Time");
+plot(t_y,y_out);
+xlabel("Time(s)");
 ylabel("Amplitude");
 title("Output of Time Stretcher");
-if Q==1
+if (Q==1 & m_p/n_p == 1)
     subplot(4,1,3);
-    MA1_s2002343_Golcha_myspec(y',Fs,N,H);
-    xlabel("Time");
+    plot(t_r,r);
+    xlabel("Time(s)");
     ylabel("Amplitude");
     title("Window Interpolation");
     
     subplot(4,1,4); 
-    plot(x-y);
-    xlabel("Time");
+    plot(t_x,x_in-y_out);
+    xlabel("Time(s)");
     ylabel("Amplitude");
-    title("Difference in input and output")
+    title("Difference in input and output");
 end
+
+%Spectogram Plots
+figure('Name',"Spectograms");
+subplot(2,1,1)
+%PLotting the Spectogram INPUT
+MA1_s2002343_Golcha_myspec(x',Fs,N,H,"Spectogram for input");
+
+subplot(2,1,2)
+%PLotting the Spectogram OUTPUT
+MA1_s2002343_Golcha_myspec(y',Fs,N,H,"Spectogram for output");
 
 %Playing the output file
 soundsc(y,Fs);
